@@ -45,6 +45,16 @@ Gyoku.xml({ :camel_case => "key" }, { :key_converter => :camelcase })
 # => "<CamelCase>key</CamelCase>"
 ```
 
+Custom key converters. You can use a lambda/Proc to provide customer key converters.
+This is a great way to leverage active support inflections for domain specific acronyms.
+
+``` ruby
+# Use camelize lower which will hook into active support if installed.
+Gyoku.xml({ acronym_abc: "value" }, key_converter: lambda { |key| key.camelize(:lower) })
+# => "<acronymABC>value</acronymABC>"
+
+```
+
 Hash key Strings are not converted and may contain namespaces.
 
 ``` ruby
@@ -62,6 +72,21 @@ Gyoku.xml("XML" => "key")
 * These conventions are also applied to the return value of objects responding to :call
 * All other objects are converted to Strings using :to_s
 
+## Array values
+
+Array items are by default wrapped with the containiner tag, which may be unexpected.
+
+``` ruby
+> Gyoku.xml({languages: [{language: 'ruby'},{language: 'java'}]})
+# => "<languages><language>ruby</language></languages><languages><language>java</language></languages>"
+```
+
+You can set the `unwrap` option to remove this behavior.
+
+``` ruby
+> Gyoku.xml({languages: [{language: 'ruby'},{language: 'java'}]}, { unwrap: true})
+# => "<languages><language>ruby</language><language>java</language></languages>"
+```
 
 ## Special characters
 
@@ -152,6 +177,42 @@ Gyoku.xml(
 # => "<foo name=\"bar\">gyoku</foo><foo name=\"baz\" some=\"attr\">rocks!</foo>"
 ```
 
+Unwrapping Arrays. You can specify an optional `unwrap` argument to modify the default Array
+behavior. `unwrap` accepts a boolean flag (false by default) or an Array whitelist of keys to unwrap.
+``` ruby
+# Default Array behavior
+Gyoku.xml({
+  "foo" => [
+    {:is => 'great' },
+    {:is => 'awesome'}
+  ]
+})
+# => "<foo><is>great</is></foo><foo><is>awesome</is></foo>"
+
+# Unwrap Array behavior
+Gyoku.xml({
+  "foo" => [
+    {:is => 'great' },
+    {:is => 'awesome'}
+  ]
+}, unwrap: true)
+# => "<foo><is>great</is><is>awesome</is></foo>"
+
+# Unwrap Array, whitelist.
+# foo is not unwrapped, bar is.
+Gyoku.xml({
+  "foo" => [
+    {:is => 'great' },
+    {:is => 'awesome'}
+  ],
+  "bar" => [
+      {:is => 'rad' },
+      {:is => 'cool'}
+  ]
+}, unwrap: [:bar])
+# => "<foo><is>great</is></foo><foo><is>awesome</is></foo><bar><is>rad</is><is>cool</is></bar>"
+```
+
 Naturally, it would ignore :content! if tag is self-closing:
 
 ``` ruby
@@ -190,3 +251,63 @@ The example above shows an example of how you can use all three at the same time
 
 Notice that we have the attribute "lang" defined twice.
 The `@lang` value takes precedence over the `:attribute![:subtitle]["lang"]` value.
+
+## Pretty Print
+
+You can prettify the output XML to make it more readable. Use these options:
+* `pretty_print` – controls pretty mode (default: `false`)
+* `indent` – specifies indentation in spaces (default: `2`)
+* `compact` – controls compact mode (default: `true`)
+
+**This feature is not available for XML documents generated from arrays with unwrap option set to false as such documents are not valid**
+
+**Examples**
+
+``` ruby
+puts Gyoku.xml({user: { name: 'John', job: { title: 'Programmer' }, :@status => 'active' }}, pretty_print: true)
+#<user status='active'>
+#  <name>John</name>
+#  <job>
+#    <title>Programmer</title>
+#  </job>
+#</user>
+```
+
+``` ruby
+puts Gyoku.xml({user: { name: 'John', job: { title: 'Programmer' }, :@status => 'active' }}, pretty_print: true, indent: 4)
+#<user status='active'>
+#    <name>John</name>
+#    <job>
+#        <title>Programmer</title>
+#    </job>
+#</user>
+```
+
+``` ruby
+puts Gyoku.xml({user: { name: 'John', job: { title: 'Programmer' }, :@status => 'active' }}, pretty_print: true, compact: false)
+#<user status='active'>
+#  <name>
+#    John
+#  </name>
+#  <job>
+#    <title>
+#      Programmer
+#    </title>
+#  </job>
+#</user>
+```
+
+**Generate XML from an array with `unwrap` option set to `true`**
+``` ruby
+puts Gyoku::Array.to_xml(["john", "jane"], "user", true, {}, pretty_print: true, unwrap: true)
+#<user>
+#  <user>john</user>
+#  <user>jane</user>
+#</user>
+```
+
+**Generate XML from an array with `unwrap` option unset (`false` by default)**
+``` ruby
+puts Gyoku::Array.to_xml(["john", "jane"], "user", true, {}, pretty_print: true)
+#<user>john</user><user>jane</user>
+```
